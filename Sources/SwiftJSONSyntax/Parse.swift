@@ -375,7 +375,7 @@ enum Generator {
     _ = parser.visit(sourceFile)
     
     if enumParser.errorStack.isEmpty {
-      print("✅ Enum Extracting => Success")
+//      print("✅ Enum Extracting => Success")
     } else {
       print("❌ Enum Extracting => Found Error")
       for error in enumParser.errorStack {
@@ -384,7 +384,7 @@ enum Generator {
     }
     
     if parser.errorStack.isEmpty {
-      print("✅ Object Extracting => Success")
+//      print("✅ Object Extracting => Success")
     } else {
       print("❌ Object Extracting => Found Error")
       for error in parser.errorStack {
