@@ -39,7 +39,7 @@ func makeMarkdownText<O: Collection>(from objects: O) -> String where O.Element 
     lines.append("|Key|ValueType|Required|Default|Description|")
     lines.append("|---|---|---|---|---|")
     for member in obj.members {
-      lines.append("|\(member.key)|\(makeMarkdownText(from: member.valueType))|\(member.isRequired)|\(member.defaultValue ?? "")|\(member.comment)|")
+      lines.append("|\(member.key.camelCaseToSnakeCase())|\(makeMarkdownText(from: member.valueType))|\(member.isRequired)|\(member.defaultValue ?? "")|\(member.comment)|")
     }
     
     lines.append("")
