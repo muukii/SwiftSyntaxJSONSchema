@@ -1,5 +1,13 @@
 struct Demo {
 
+  let defaultString = "DemoDemo"
+  let defaultString_2: String = "DemoDemoDemo"  
+
+  let defaultNumber = 1
+  let defaultNumber_2: Int = 1
+
+  let defaultBoolean = true
+  let defaultNumber_2: Bool = true
   /// This is count
   let count: Int
   // This is name

@@ -10,14 +10,14 @@ func makeMarkdownText(from valueType: ValueType) -> String {
     return "string"
   case .number:
     return "number"
+  case .boolean:
+    return "boolean"
   case .object(let objectRef):
     return "\(objectRef.name) object"
   case .array(let valueType):
     return "the array of \(makeMarkdownText(from: valueType))"
   case .oneof(let wrapper):
     return "one of \(wrapper.cases.map { makeMarkdownText(from: $0.valueType) }.joined(separator: ", "))"
-  @unknown default:
-    return "unknown"
   }
 }
 
@@ -36,10 +36,10 @@ func makeMarkdownText<O: Collection>(from objects: O) -> String where O.Element 
     lines.append("### Properties")
     
     lines.append("")
-    lines.append("|Key|ValueType|Required|Description|")
-    lines.append("|---|---|---|---|")
+    lines.append("|Key|ValueType|Required|Default|Description|")
+    lines.append("|---|---|---|---|---|")
     for member in obj.members {
-      lines.append("|\(member.key)|\(makeMarkdownText(from: member.valueType))|\(member.isRequired)|\(member.comment)|")
+      lines.append("|\(member.key)|\(makeMarkdownText(from: member.valueType))|\(member.isRequired)|\(member.defaultValue ?? "")|\(member.comment)|")
     }
     
     lines.append("")
@@ -78,6 +78,7 @@ indirect enum ValueType: Hashable {
   case unknown
   case string
   case number
+  case boolean
   case object(ObjectRef)
   case array(ValueType)
   case oneof(OneofWrapper)
@@ -88,6 +89,7 @@ struct Member: Hashable {
   var key: String
   var valueType: ValueType
   var isRequired: Bool
+  var defaultValue: String?
   var comment: String
 }
 
@@ -290,12 +292,39 @@ final class ObjectExtractor: SyntaxRewriter {
         
         let name = (binding.pattern as! IdentifierPatternSyntax).identifier.text
         
-        switch binding.typeAnnotation?.type {
+        var defaultValue: String?
+        
+        if let initializer = binding.initializer {
+          
+          switch initializer.value {
+          case let value as StringLiteralExprSyntax:
+            defaultValue = value.segments
+              .compactMap { $0 as? StringSegmentSyntax }
+              .map {
+                $0.content.text
+            }
+            .joined(separator: ",")
+          case let value as IntegerLiteralExprSyntax:
+            defaultValue = value.digits.text
+          case let value as BooleanLiteralExprSyntax:
+            defaultValue = value.booleanLiteral.text
+          default:
+            break
+          }
+          
+        }
+        
+        guard let typeAnnotation = binding.typeAnnotation else {
+          return nil
+        }
+        
+        switch typeAnnotation.type {
         case let b as SimpleTypeIdentifierSyntax:
           return Member(
             key: name,
             valueType: makeValueType(from: b, namespace: structName),
             isRequired: true,
+            defaultValue: defaultValue,
             comment: comment
           )
         case let b as OptionalTypeSyntax:
@@ -303,6 +332,7 @@ final class ObjectExtractor: SyntaxRewriter {
             key: name,
             valueType: makeValueType(from: (b.wrappedType as! SimpleTypeIdentifierSyntax), namespace: structName),
             isRequired: false,
+            defaultValue: defaultValue,
             comment: comment
           )
         case let b as ArrayTypeSyntax:
@@ -310,6 +340,7 @@ final class ObjectExtractor: SyntaxRewriter {
             key: name,
             valueType: .array(makeValueType(from: (b.elementType as! SimpleTypeIdentifierSyntax), namespace: structName)),
             isRequired: false,
+            defaultValue: defaultValue,
             comment: comment
           )
         default:
