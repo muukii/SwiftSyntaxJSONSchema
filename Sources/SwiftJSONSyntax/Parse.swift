@@ -2,6 +2,14 @@
 import SwiftSyntax
 import Foundation
 
+func makeMarkdownHashLink(from objectRef: ObjectRef) -> String {
+  "[\(objectRef.name)](#_json_\(objectRef.name))"
+}
+
+func makeMarkdownObjectHeading(from object: Object) -> String {
+  #"<span id="_json_\#(object.name)"></span>\#(object.name) object"#
+}
+
 func makeMarkdownText(from valueType: ValueType) -> String {
   switch valueType {
   case .unknown:
@@ -13,7 +21,7 @@ func makeMarkdownText(from valueType: ValueType) -> String {
   case .boolean:
     return "boolean"
   case .object(let objectRef):
-    return "\(objectRef.name) object"
+    return "\(makeMarkdownHashLink(from: objectRef)) object"
   case .array(let valueType):
     return "the array of \(makeMarkdownText(from: valueType))"
   case .oneof(let wrapper):
@@ -25,7 +33,7 @@ func makeMarkdownText<O: Collection>(from objects: O) -> String where O.Element 
   
   var lines: [String] = []
   for obj in objects.sorted(by: { $0.name < $1.name }) {
-    lines.append("## \(obj.name)")
+    lines.append("## \(makeMarkdownObjectHeading(from: obj))")
     lines.append("")
     if obj.comment.isEmpty {
       lines.append("No description")
@@ -163,9 +171,15 @@ final class EnumExtractor: SyntaxRewriter {
             return associatedValue.parameterList
               .map { parameter -> OneofWrapper.Case in
                 
-                let typeSyntax = (parameter.type as! SimpleTypeIdentifierSyntax)
-                let name = parameter.firstName?.text ?? caseName
-                return OneofWrapper.Case.init(name: name, valueType: makeValueType(from: typeSyntax))
+                switch parameter.type {
+                case let typeSyntax as SimpleTypeIdentifierSyntax:
+                  let name = parameter.firstName?.text ?? caseName
+                  return OneofWrapper.Case.init(name: name, valueType: makeValueType(from: typeSyntax))
+                case let typeSyntax as MemberTypeIdentifierSyntax:
+                  fatalError("Sorry unimplemented \(typeSyntax)")
+                default:
+                  fatalError("Sorry unimplemented \(parameter)")
+                }
             }
         }
     }

@@ -1,71 +1,27 @@
-struct Demo {
 
-  let defaultString = "DemoDemo"
-  let defaultString_2: String = "DemoDemoDemo"  
-
-  let defaultNumber = 1
-  let defaultNumber_2: Int = 1
-
-  let defaultBoolean = true
-  let defaultNumber_2: Bool = true
-  /// This is count
-  let count: Int
-  // This is name
-  let name: String
-  let optionalText: String?
-
-}
-
-
+/// Image
 struct Image {
   let url: String
-  let alt_text: String
-}
-
-struct PlainText {
-  let text: String
-}
-
-enum Body {
-  case text(bodyText: PlainText)
-  case image(Image)  
 }
 
 /// Hello
-/// JSON
-struct Message {
+struct Body {
+  /// 値です
+  var value: Int?
+  var image: Image
 
-  struct MyNested1Type {
+  struct Chunk {
 
-    struct MyNested2Type {
-      let value: String?
-    }
-
-    let value: String?
-    let object: MyNested2Type
   }
 
-  enum Body {
-    case text(bodyText: PlainText)
-    case image(Image)  
+  struct Obento {
+
   }
 
-  let body: Body
-  let updatedAt: String
-  let meta: MyNested1Type
-}
+  enum Item {
+    case chunk(Chunk)
+    case obento(Obento)
+  }
 
-/// Member object
-struct Member {
-  let kind: String
-  let id: String
-  let name: String
-  let profile_image: Image
-
-}
-
-struct MessageResponse {
-
-  let contents: [Message]
-  let members: [Member]
+  var items: [Item]
 }
