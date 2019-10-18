@@ -1,27 +1,21 @@
+struct SendMessage: Endpoint {
 
-/// Image
-struct Image {
-  let url: String
-}
+  let method: Method = .post
+  let path = "./hoge"
 
-/// Hello
-struct Body {
-  /// 値です
-  var value: Int?
-  var image: Image
-
-  struct Chunk {
-
+  struct Header: Object {
+    var a: Int
   }
 
-  struct Obento {
-
+  struct Query: Object {
+    var a: Int
   }
 
-  enum Item {
-    case chunk(Chunk)
-    case obento(Obento)
-  }
+  struct Body: Object {
+    var a: Int
+  } 
 
-  var items: [Item]
+  struct Response: Object {
+    var b: String?
+  }
 }

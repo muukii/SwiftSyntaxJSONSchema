@@ -2,61 +2,6 @@
 import SwiftSyntax
 import Foundation
 
-func makeMarkdownHashLink(from objectRef: ObjectRef) -> String {
-  "[\(objectRef.name)](#_json_\(objectRef.name))"
-}
-
-func makeMarkdownObjectHeading(from object: Object) -> String {
-  #"<span id="_json_\#(object.name)"></span>\#(object.name) object"#
-}
-
-func makeMarkdownText(from valueType: ValueType) -> String {
-  switch valueType {
-  case .unknown:
-    return "Unknown"
-  case .string:
-    return "string"
-  case .number:
-    return "number"
-  case .boolean:
-    return "boolean"
-  case .object(let objectRef):
-    return "\(makeMarkdownHashLink(from: objectRef)) object"
-  case .array(let valueType):
-    return "the array of \(makeMarkdownText(from: valueType))"
-  case .oneof(let wrapper):
-    return "one of \(wrapper.cases.map { makeMarkdownText(from: $0.valueType) }.joined(separator: ", "))"
-  }
-}
-
-func makeMarkdownText<O: Collection>(from objects: O) -> String where O.Element == Object {
-  
-  var lines: [String] = []
-  for obj in objects.sorted(by: { $0.name < $1.name }) {
-    lines.append("## \(makeMarkdownObjectHeading(from: obj))")
-    lines.append("")
-    if obj.comment.isEmpty {
-      lines.append("No description")
-    } else {
-      lines.append(obj.comment)
-    }
-    lines.append("")
-    lines.append("### Properties")
-    
-    lines.append("")
-    lines.append("|Key|ValueType|Required|Default|Description|")
-    lines.append("|---|---|---|---|---|")
-    for member in obj.members {
-      lines.append("|\(member.key.camelCaseToSnakeCase())|\(makeMarkdownText(from: member.valueType))|\(member.isRequired)|\(member.defaultValue ?? "")|\(member.comment)|")
-    }
-    
-    lines.append("")
-    lines.append("")
-  }
-  
-  return lines.joined(separator: "\n")
-}
-
 enum Error: Swift.Error {
   case parsedDuplicatedDecl
 }
@@ -65,6 +10,10 @@ struct Object: Hashable {
   var name: String
   var comment: String
   var members: [Member] = []
+  
+  func makeRef() -> ObjectRef {
+    ObjectRef(name: name)
+  }
 }
 
 struct ObjectRef: Hashable {
@@ -101,6 +50,43 @@ struct Member: Hashable {
   var comment: String
 }
 
+extension Array where Element == Member {
+  
+  func collectAllRelatedObjects(context: ParserContext) -> Set<ObjectRef> {
+    
+    var buffer = Set<ObjectRef>()
+    
+    func _collectAllRelatedObjects(valueType: ValueType) {
+      
+      switch valueType {
+      case .unknown:
+        break
+      case .string:
+        break
+      case .number:
+        break
+      case .boolean:
+        break
+      case .object(let object):
+        buffer.insert(object)
+      case .array(let valueType):
+        _collectAllRelatedObjects(valueType: valueType)
+      case .oneof(let wrapper):
+        wrapper.cases.forEach {
+          _collectAllRelatedObjects(valueType: $0.valueType)
+        }
+      }            
+    }
+    
+    for element in self {
+      _collectAllRelatedObjects(valueType: element.valueType)
+    }
+      
+    return buffer
+  }
+  
+}
+
 let numberKeywords = [
   "Int"
 ]
@@ -111,8 +97,11 @@ let stringkeywords = [
 
 final class EnumExtractor: SyntaxRewriter {
   
-  var errorStack: [Error] = []
-  var oneofWrappers: Set<OneofWrapper> = .init()
+  let context: ParserContext
+  
+  init(context: ParserContext) {
+    self.context = context
+  }
   
   private func makeValueType(from syntax: SimpleTypeIdentifierSyntax) -> ValueType {
     let name = syntax.name.text
@@ -121,8 +110,8 @@ final class EnumExtractor: SyntaxRewriter {
       return .number
     case _ where stringkeywords.contains(name):
       return .string
-    case _ where oneofWrappers.contains { $0.wrapperName == name }:
-      return .oneof(oneofWrappers.first { $0.wrapperName == name }!)
+    case _ where context.oneofWrappers.contains { $0.wrapperName == name }:
+      return .oneof(context.oneofWrappers.first { $0.wrapperName == name }!)
     default:
       return .object(.init(name: syntax.name.text))
     }
@@ -140,18 +129,13 @@ final class EnumExtractor: SyntaxRewriter {
   
   private func parse(enumDecl: EnumDeclSyntax, parentName: String?) {
     
+    let isOneOf = enumDecl.inheritanceClause?.inheritedTypeCollection.compactMap { $0.typeName as? SimpleTypeIdentifierSyntax }
+      .contains { $0.name.text == "OneOf" } ?? false
+    
+    guard isOneOf else { return }
+    
     let enumName = [parentName, enumDecl.identifier.text].compactMap { $0 }.joined(separator: "_")
-    
-    //    let comment = {
-    //
-    //      enumDecl.enumKeyword.leadingTrivia.compactMap { t -> String? in
-    //        guard case .docLineComment(let comment) = t else { return nil }
-    //        return comment.replacingOccurrences(of: "/// ", with: "")
-    //      }
-    //      .joined(separator: "\n")
-    //
-    //    }()
-    
+        
     let caseCount = enumDecl.members.members.count
     
     typealias CaseOneOf = (name: String, valueType: ValueType)
@@ -192,9 +176,9 @@ final class EnumExtractor: SyntaxRewriter {
         cases: cases
       )
       
-      let (inserted, _) = oneofWrappers.insert(wrapper)
+      let (inserted, _) = context.oneofWrappers.insert(wrapper)
       if !inserted {
-        errorStack.append(.parsedDuplicatedDecl)
+        context.errorStack.append(.parsedDuplicatedDecl)
       }
       
     } else {
@@ -224,14 +208,10 @@ final class EnumExtractor: SyntaxRewriter {
 
 final class ObjectExtractor: SyntaxRewriter {
   
-  var oneofWrappers: Set<OneofWrapper> = .init()
-  var parsedObjects: Set<Object> = .init()
-  var errorStack: [Error] = []
+  let context: ParserContext
   
-  init(
-    oneofWrappers: Set<OneofWrapper>
-  ) {
-    self.oneofWrappers = oneofWrappers
+  init(context: ParserContext) {
+    self.context = context
   }
   
   private func makeValueType(from syntax: SimpleTypeIdentifierSyntax, namespace: String?) -> ValueType {
@@ -241,8 +221,8 @@ final class ObjectExtractor: SyntaxRewriter {
       return .number
     case _ where stringkeywords.contains(name):
       return .string
-    case _ where oneofWrappers.contains { $0.wrapperName == name }:
-      return .oneof(oneofWrappers.first { $0.wrapperName == name }!)
+    case _ where context.oneofWrappers.contains { $0.wrapperName == name }:
+      return .oneof(context.oneofWrappers.first { $0.wrapperName == name }!)
     default:
       if namespace != nil {
         return makeValueType(from: syntax, namespace: nil)
@@ -266,11 +246,31 @@ final class ObjectExtractor: SyntaxRewriter {
   }
   
   override func visit(_ node: StructDeclSyntax) -> DeclSyntax {
+    
+    guard let inheritanceCaluse = node.inheritanceClause else {
+      return node
+    }
+    
+    let isEndpoint = inheritanceCaluse.inheritedTypeCollection
+      .compactMap { $0.typeName as? SimpleTypeIdentifierSyntax }
+      .filter { $0.name.text == "Object" }
+      .isEmpty == false
+    
+    guard isEndpoint else {
+      return node
+    }
+        
     parse(structDecl: node, parentName: nil)
     return node
   }
   
-  private func parse(structDecl: StructDeclSyntax, parentName: String?) {
+  @discardableResult
+  func parse(structDecl: StructDeclSyntax, parentName: String?) -> ObjectRef? {
+    
+    let isObject = structDecl.inheritanceClause?.inheritedTypeCollection.compactMap { $0.typeName as? SimpleTypeIdentifierSyntax }
+      .contains { $0.name.text == "Object" } ?? false
+    
+    guard isObject else { return nil }
     
     let structName = [parentName, structDecl.identifier.text].compactMap { $0 }.joined(separator: "_")
     let comment = takeComment(from: structDecl.structKeyword)
@@ -367,10 +367,12 @@ final class ObjectExtractor: SyntaxRewriter {
     
     obj.members = members
     
-    let (inserted, _) = parsedObjects.insert(obj)
+    let (inserted, _) = context.parsedObjects.insert(obj)
     if !inserted {
-      errorStack.append(.parsedDuplicatedDecl)
+      context.errorStack.append(.parsedDuplicatedDecl)
     }
+    
+    return obj.makeRef()
     
   }
   
@@ -383,30 +385,32 @@ enum Generator {
     let url = URL(fileURLWithPath: filePath)
     let sourceFile = try SyntaxParser.parse(url)
     
-    let enumParser = EnumExtractor()
-    _ = enumParser.visit(sourceFile)
-    let parser = ObjectExtractor(oneofWrappers: enumParser.oneofWrappers)
-    _ = parser.visit(sourceFile)
+    let context = ParserContext()
     
-    if enumParser.errorStack.isEmpty {
+    _ = EnumExtractor(context: context).visit(sourceFile)
+    _ = ObjectExtractor(context: context).visit(sourceFile)
+    _ = EndpointParser(context: context).visit(sourceFile)
+    
+    if context.errorStack.isEmpty {
 //      print("✅ Enum Extracting => Success")
     } else {
       print("❌ Enum Extracting => Found Error")
-      for error in enumParser.errorStack {
+      for error in context.errorStack {
         print(" -", error)
       }
     }
     
-    if parser.errorStack.isEmpty {
+    if context.errorStack.isEmpty {
 //      print("✅ Object Extracting => Success")
     } else {
       print("❌ Object Extracting => Found Error")
-      for error in parser.errorStack {
+      for error in context.errorStack {
         print(" -", error)
       }
     }
     
-    let text = makeMarkdownText(from: parser.parsedObjects)
+//    let text = JSONListRenderer().render(context: context)
+    let text = APIDocumentRenderer().render(context: context)
     
     print("Result")
     print("")

@@ -1,5 +1,6 @@
 import Foundation
 import SPMUtility
+import SwiftSyntax
 
 import func Darwin.fputs
 import var Darwin.stderr
@@ -23,7 +24,7 @@ do {
   }
    
   try Generator.run(filePath: path)
-  
+
 } catch {
   
   print("Error! \(error)", to: &standardError)

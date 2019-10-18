@@ -23,7 +23,7 @@ let package = Package(
       dependencies: []),
     .target(
       name: "SwiftJSONSyntax",
-      dependencies: ["SwiftSyntax", "SPMUtility"]),
+      dependencies: ["OpenAPIKit", "SwiftSyntax", "SPMUtility"]),
     .testTarget(
       name: "SwiftJSONSyntaxTests",
       dependencies: ["SwiftJSONSyntax"]),
