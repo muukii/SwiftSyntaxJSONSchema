@@ -46,10 +46,15 @@ final class ObjectExtractor: SyntaxRewriter {
   @discardableResult
   func parse(structDecl: StructDeclSyntax, parentName: String?) -> ObjectRef? {
     
-    let isObject = structDecl.inheritanceClause?.inheritedTypeCollection.compactMap { $0.typeName as? SimpleTypeIdentifierSyntax }
-      .contains { $0.name.text == "Object" } ?? false
+    let inheritedTypeNames = structDecl.inheritanceClause?.inheritedTypeCollection
+      .compactMap { $0.typeName as? SimpleTypeIdentifierSyntax }
+      .map { $0.name.text } ?? []
+    
+    let isObject = inheritedTypeNames.contains { $0.contains("Object") }
     
     guard isObject else { return nil }
+    
+    let isNominalType = inheritedTypeNames.contains { $0.contains("NominalObject") }
     
     let structName = [parentName, structDecl.identifier.text].compactMap { $0 }.joined(separator: "_")
     let comment = takeComment(from: structDecl.structKeyword)
@@ -69,7 +74,7 @@ final class ObjectExtractor: SyntaxRewriter {
         parse(structDecl: structDecl, parentName: obj.name)
       }
     }
-    
+        
     let members = structDecl.members.members
       .compactMap { $0.decl as? VariableDeclSyntax }
       .filter {
@@ -112,27 +117,14 @@ final class ObjectExtractor: SyntaxRewriter {
         switch typeAnnotation.type {
         case let b as SimpleTypeIdentifierSyntax:
           
-          if b.name.text == "SelfTypeName" {
-            
-            return Member(
-              key: "type",
-              valueType: .string,
-              isRequired: true,
-              defaultValue: structName.camelCaseToSnakeCase(),
-              comment: comment
-            )
-            
-          } else {
-            
-            return Member(
-              key: name,
-              valueType: makeValueType(from: b, on: context),
-              isRequired: true,
-              defaultValue: defaultValue,
-              comment: comment
-            )
-            
-          }
+          return Member(
+            key: name,
+            valueType: makeValueType(from: b, on: context),
+            isRequired: true,
+            defaultValue: defaultValue,
+            comment: comment
+          )
+          
         case let b as OptionalTypeSyntax:
           return Member(
             key: name,
@@ -156,9 +148,22 @@ final class ObjectExtractor: SyntaxRewriter {
         
       }
     }
-    
-    obj.members = members
-    
+        
+    if isNominalType {
+      
+      obj.members.append(.init(
+        key: "type",
+        valueType: .string,
+        isRequired: true,
+        defaultValue: structName.camelCaseToSnakeCase(),
+        comment: "The type name"
+        )
+      )
+      
+    }
+      
+    obj.members += members
+          
     let (inserted, _) = context.parsedObjects.insert(obj)
     if !inserted {
       context.errorStack.append(.parsedDuplicatedDecl)

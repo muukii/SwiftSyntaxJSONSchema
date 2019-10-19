@@ -56,7 +56,7 @@ final class EnumExtractor: SyntaxRewriter {
                 
                 switch parameter.type {
                 case let typeSyntax as SimpleTypeIdentifierSyntax:
-                  let name = caseName
+                  let name = caseName.camelCaseToSnakeCase()
                   return OneofWrapper.Case.init(
                     name: name,
                     valueType: makeValueType(from: typeSyntax, on: context)

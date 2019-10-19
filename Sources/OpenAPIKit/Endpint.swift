@@ -19,11 +19,11 @@ public protocol Object {
   
 }
 
-public protocol OneOf {
+public protocol NominalObject {
   
 }
 
-public struct SelfTypeName {
+public protocol OneOf {
   
 }
 
