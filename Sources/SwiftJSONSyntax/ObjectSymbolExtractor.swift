@@ -24,10 +24,15 @@ final class ObjectSymbolExtractor: SyntaxRewriter {
   @discardableResult
   func parse(structDecl: StructDeclSyntax) -> ObjectSymbol? {
     
-    let isObject = structDecl.inheritanceClause?.inheritedTypeCollection.compactMap { $0.typeName as? SimpleTypeIdentifierSyntax }
-      .contains { $0.name.text == "Object" } ?? false
+    let inheritedTypeNames = structDecl.inheritanceClause?.inheritedTypeCollection
+      .compactMap { $0.typeName as? SimpleTypeIdentifierSyntax }
+      .map { $0.name.text } ?? []
+        
+    let isObject = inheritedTypeNames.contains { $0.contains("Object") }
     
-    guard isObject else { return nil }
+    guard isObject else {
+      return nil
+    }
     
     let structName = structDecl.makeFullName()
     

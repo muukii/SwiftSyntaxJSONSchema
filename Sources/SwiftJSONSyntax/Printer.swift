@@ -131,36 +131,36 @@ final class APIDocumentRenderer: Renderer {
       
       let endpointBuilder = MarkdownBuilder(anchorNamespace: endpoint.name)
       
-      endpointBuilder.append("# 🔗  \(endpoint.method.toString()) : \(endpoint.name)")
+      endpointBuilder.append("## 🔗  \(endpoint.method.toString()) : \(endpoint.name)")
       endpointBuilder.appendNewline()
       endpointBuilder.append("**Path** : \(endpoint.path)")
       endpointBuilder.append("**Method** : \(endpoint.method.toString())")
       endpointBuilder.appendNewline()
       
-      endpointBuilder.append("## 📤 Request Parameters")
+      endpointBuilder.append("### 📤 Request Parameters")
       endpointBuilder.appendNewline()
-      endpointBuilder.append("### Header Fields")
+      endpointBuilder.append("#### Header Fields")
       endpointBuilder.appendPropertyList(from: context.object(from: endpoint.header).members)
       endpointBuilder.appendNewline()
       endpointBuilder.appendMarkdownSeparator()
       
-      endpointBuilder.append("### Query Parameters")
+      endpointBuilder.append("#### Query Parameters")
       endpointBuilder.appendPropertyList(from: context.object(from: endpoint.query).members)
       endpointBuilder.appendNewline()
       endpointBuilder.appendMarkdownSeparator()
       
-      endpointBuilder.append("### Body Parameters")
+      endpointBuilder.append("#### Body Parameters")
       endpointBuilder.appendPropertyList(from: context.object(from: endpoint.body).members)
       endpointBuilder.appendNewline()
       endpointBuilder.appendMarkdownSeparator()
       
-      endpointBuilder.append("## 📥 Response Format")
+      endpointBuilder.append("### 📥 Response Format")
       
       endpointBuilder.appendPropertyList(from: context.object(from: endpoint.response).members)
       endpointBuilder.appendNewline()
       endpointBuilder.appendMarkdownSeparator()
       
-      endpointBuilder.append("### Related Objects")
+      endpointBuilder.append("#### Related Objects")
       endpointBuilder.appendNewline()
       endpointBuilder.appendMarkdownSeparator()
       

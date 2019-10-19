@@ -24,21 +24,7 @@ final class ObjectExtractor: SyntaxRewriter {
     .joined(separator: "\n")
   }
   
-  override func visit(_ node: StructDeclSyntax) -> DeclSyntax {
-    
-    guard let inheritanceCaluse = node.inheritanceClause else {
-      return node
-    }
-    
-    let isEndpoint = inheritanceCaluse.inheritedTypeCollection
-      .compactMap { $0.typeName as? SimpleTypeIdentifierSyntax }
-      .filter { $0.name.text == "Object" }
-      .isEmpty == false
-    
-    guard isEndpoint else {
-      return node
-    }
-        
+  override func visit(_ node: StructDeclSyntax) -> DeclSyntax {              
     parse(structDecl: node, parentName: nil)
     return node
   }
@@ -52,11 +38,13 @@ final class ObjectExtractor: SyntaxRewriter {
     
     let isObject = inheritedTypeNames.contains { $0.contains("Object") }
     
-    guard isObject else { return nil }
+    guard isObject else {
+      return nil      
+    }
     
     let isNominalType = inheritedTypeNames.contains { $0.contains("NominalObject") }
     
-    let structName = [parentName, structDecl.identifier.text].compactMap { $0 }.joined(separator: "_")
+    let structName = structDecl.makeFullName()
     let comment = takeComment(from: structDecl.structKeyword)
         
     var obj = Object(
