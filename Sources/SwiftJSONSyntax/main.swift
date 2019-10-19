@@ -5,6 +5,47 @@ import SwiftSyntax
 import func Darwin.fputs
 import var Darwin.stderr
 
+enum Generator {
+  
+  static func run(filePath: String) throws {
+    
+    let url = URL(fileURLWithPath: filePath)
+    let sourceFile = try SyntaxParser.parse(url)
+    
+    let context = ParserContext()
+    
+    _ = ObjectSymbolExtractor(context: context).visit(sourceFile)
+    _ = EnumExtractor(context: context).visit(sourceFile)
+    _ = ObjectExtractor(context: context).visit(sourceFile)
+    _ = EndpointParser(context: context).visit(sourceFile)
+    
+    if context.errorStack.isEmpty {
+      //      print("✅ Enum Extracting => Success")
+    } else {
+      print("❌ Enum Extracting => Found Error")
+      for error in context.errorStack {
+        print(" -", error)
+      }
+    }
+    
+    if context.errorStack.isEmpty {
+      //      print("✅ Object Extracting => Success")
+    } else {
+      print("❌ Object Extracting => Found Error")
+      for error in context.errorStack {
+        print(" -", error)
+      }
+    }
+    
+    //    let text = JSONListRenderer().render(context: context)
+    let text = APIDocumentRenderer().render(context: context)
+    
+    print("Result")
+    print("")
+    print(text)
+  }
+}
+
 struct StderrOutputStream: TextOutputStream {
   mutating func write(_ string: String) {
     fputs(string, stderr)
@@ -30,3 +71,4 @@ do {
   print("Error! \(error)", to: &standardError)
   exit(1)
 }
+

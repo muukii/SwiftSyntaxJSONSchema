@@ -34,6 +34,19 @@ extension HTTPMethod {
       fatalError("Undefined method, \(string)")
     }
   }
+  
+  func toString() -> String {
+    switch self {
+    case .get:
+      return "GET"
+    case .post:
+      return "POST"
+    case .put:
+      return "PUT"
+    case .delete:
+      return "DELETE"
+    }
+  }
 }
 
 public final class EndpointParser: SyntaxRewriter {

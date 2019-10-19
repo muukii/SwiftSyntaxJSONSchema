@@ -1,12 +1,11 @@
- 
- public enum HTTPMethod: Hashable {
+public enum HTTPMethod: Hashable {
   case get
   case post
   case put
   case delete
- }
- 
- public protocol Endpoint {
+}
+
+public protocol Endpoint {
   
   var method: HTTPMethod { get }
   var path: String { get }
@@ -14,12 +13,17 @@
   associatedtype Query: Object
   associatedtype Body: Object
   associatedtype Response: Object
- }
- 
- public protocol Object {
+}
+
+public protocol Object {
   
- }
- 
- public protocol OneOf {
+}
+
+public protocol OneOf {
   
- }
+}
+
+public struct SelfTypeName {
+  
+}
+

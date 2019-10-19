@@ -19,7 +19,7 @@ func makeValueType(from syntax: SimpleTypeIdentifierSyntax, on context: ParserCo
   if stringkeywords.contains(name) {
     return .string
   }
-  
+    
   let onwOfWrappers = context.oneofWrappers
     .filter {
       $0.wrapperName.hasSuffix(name)
@@ -42,6 +42,55 @@ func makeValueType(from syntax: SimpleTypeIdentifierSyntax, on context: ParserCo
   
   fatalError("OMG")
 }
+
+extension Array where Element == Member {
+  
+  func collectAllRelatedObjects(context: ParserContext) -> Set<ObjectRef> {
+    
+    var buffer = Set<ObjectRef>()
+    
+    func _collectAllRelatedObjects(valueType: ValueType) {
+      
+      switch valueType {
+      case .unknown:
+        break
+      case .string:
+        break
+      case .number:
+        break
+      case .boolean:
+        break
+      case .object(let objectRef):
+        buffer.insert(objectRef)
+        context.object(from: objectRef).members.forEach {
+          _collectAllRelatedObjects(valueType: $0.valueType)
+        }
+      case .array(let valueType):
+        _collectAllRelatedObjects(valueType: valueType)
+      case .oneof(let wrapper):
+        wrapper.cases.forEach {
+          _collectAllRelatedObjects(valueType: $0.valueType)
+        }
+      }
+    }
+    
+    for element in self {
+      _collectAllRelatedObjects(valueType: element.valueType)
+    }
+    
+    return buffer
+  }
+  
+}
+
+let numberKeywords = [
+  "Int"
+]
+
+let stringkeywords = [
+  "String"
+]
+
 
 enum Error: Swift.Error {
   case parsedDuplicatedDecl

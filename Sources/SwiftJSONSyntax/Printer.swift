@@ -7,21 +7,20 @@
 
 import Foundation
 
-struct LineBuffer {
+class PlainTextBuilder {
   
   private var lines: [String] = []
   
   private var indent: Int = 0
-  
-  init() {
     
+  init() {
   }
   
-  mutating func appendNewline() {
+  func appendNewline() {
     lines.append("")
   }
-
-  mutating func append(_ line: String) {
+  
+  func append(_ line: String) {
     lines.append(makeIndentSpace() + line)
   }
   
@@ -34,17 +33,31 @@ struct LineBuffer {
   }
 }
 
-enum Markdown {
+final class MarkdownBuilder: PlainTextBuilder {
+    
+  let anchorNamespace: String
   
-  static func makeObjectLink(from objectRef: ObjectRef) -> String {
-    "[\(objectRef.name)](#_json_\(objectRef.name))"
+  init(anchorNamespace: String) {
+    self.anchorNamespace = anchorNamespace
   }
   
-  static func makeObjectAnchor(from object: Object) -> String {
-    #"<span id="_json_\#(object.name)"></span>\#(object.name) object"#
+}
+
+extension MarkdownBuilder {
+  
+  func appendMarkdownSeparator() {
+    append("---")
   }
   
-  static func makePropertyText(from valueType: ValueType) -> String {
+  private func makeObjectLink(from objectRef: ObjectRef) -> String {
+    "[\(objectRef.name)](#_\(anchorNamespace)_\(objectRef.name))"
+  }
+  
+  private func makeObjectAnchor(from object: Object) -> String {
+    #"<span id="_\#(anchorNamespace)_\#(object.name)"></span>\#(object.name) object"#
+  }
+  
+  private func makePropertyText(from valueType: ValueType) -> String {
     switch valueType {
     case .unknown:
       return "Unknown"
@@ -63,9 +76,9 @@ enum Markdown {
     }
   }
   
-  static func makePropertyList<O: Collection>(from members: O) -> String where O.Element == Member {
+  func appendPropertyList<O: Collection>(from members: O)  where O.Element == Member {
     
-    var buffer = LineBuffer()
+    let buffer = MarkdownBuilder(anchorNamespace: anchorNamespace)
     
     buffer.append("|Key|ValueType|Required|Default|Description|")
     buffer.append("|---|---|---|---|---|")
@@ -73,12 +86,12 @@ enum Markdown {
       buffer.append("|\(member.key.camelCaseToSnakeCase())|\(makePropertyText(from: member.valueType))|\(member.isRequired)|\(member.defaultValue ?? "")|\(member.comment)|")
     }
     
-    return buffer.render()
+    append(buffer.render())
   }
   
-  static func makeMarkdownText<O: Collection>(from objects: O, baseHeading: String = "") -> String where O.Element == Object {
+  func appendMarkdownText<O: Collection>(from objects: O, baseHeading: String = "") where O.Element == Object {
     
-    var buffer = LineBuffer()
+    let buffer = MarkdownBuilder(anchorNamespace: anchorNamespace)
     
     for obj in objects.sorted(by: { $0.name < $1.name }) {
       buffer.append("\(baseHeading)# \(makeObjectAnchor(from: obj))")
@@ -92,13 +105,13 @@ enum Markdown {
       buffer.append("\(baseHeading)## Properties")
       
       buffer.append("")
-      buffer.append(makePropertyList(from: obj.members))
+      buffer.appendPropertyList(from: obj.members)
       
       buffer.append("")
-      buffer.append("")
+      buffer.appendMarkdownSeparator()
     }
     
-    return buffer.render()
+    append(buffer.render())
   }
   
 }
@@ -111,64 +124,74 @@ protocol Renderer {
 final class APIDocumentRenderer: Renderer {
   
   func render(context: ParserContext) -> String {
-
-    var buffer = LineBuffer()
+    
+    let builder = PlainTextBuilder()
 
     for endpoint in context.endpoints {
       
-      buffer.append("## \(endpoint.name)")
+      let endpointBuilder = MarkdownBuilder(anchorNamespace: endpoint.name)
       
-      buffer.appendNewline()
+      endpointBuilder.append("# 🔗  \(endpoint.method.toString()) : \(endpoint.name)")
+      endpointBuilder.appendNewline()
+      endpointBuilder.append("**Path** : \(endpoint.path)")
+      endpointBuilder.append("**Method** : \(endpoint.method.toString())")
+      endpointBuilder.appendNewline()
       
-      buffer.append("### Request Parameters")
-      buffer.appendNewline()
-      buffer.append("#### Header Fields")
-      buffer.append(Markdown.makePropertyList(from: context.object(from: endpoint.header).members))
-      buffer.appendNewline()
+      endpointBuilder.append("## 📤 Request Parameters")
+      endpointBuilder.appendNewline()
+      endpointBuilder.append("### Header Fields")
+      endpointBuilder.appendPropertyList(from: context.object(from: endpoint.header).members)
+      endpointBuilder.appendNewline()
+      endpointBuilder.appendMarkdownSeparator()
       
-      buffer.append("#### Query Parameters")
-      buffer.append(Markdown.makePropertyList(from: context.object(from: endpoint.query).members))
-      buffer.appendNewline()
+      endpointBuilder.append("### Query Parameters")
+      endpointBuilder.appendPropertyList(from: context.object(from: endpoint.query).members)
+      endpointBuilder.appendNewline()
+      endpointBuilder.appendMarkdownSeparator()
       
-      buffer.append("#### Body Parameters")
-      buffer.append(Markdown.makePropertyList(from: context.object(from: endpoint.body).members))
-      buffer.appendNewline()
+      endpointBuilder.append("### Body Parameters")
+      endpointBuilder.appendPropertyList(from: context.object(from: endpoint.body).members)
+      endpointBuilder.appendNewline()
+      endpointBuilder.appendMarkdownSeparator()
       
-      buffer.append("## Response")
+      endpointBuilder.append("## 📥 Response Format")
       
-      buffer.append(Markdown.makePropertyList(from: context.object(from: endpoint.response).members))
-      buffer.appendNewline()
+      endpointBuilder.appendPropertyList(from: context.object(from: endpoint.response).members)
+      endpointBuilder.appendNewline()
+      endpointBuilder.appendMarkdownSeparator()
       
-      buffer.append("### Related Objects")
-      buffer.appendNewline()
+      endpointBuilder.append("### Related Objects")
+      endpointBuilder.appendNewline()
+      endpointBuilder.appendMarkdownSeparator()
       
-      buffer.append(
-        Markdown.makeMarkdownText(
-          from: [
-            context.object(from: endpoint.body).members.collectAllRelatedObjects(context: context),
-            context.object(from: endpoint.response).members.collectAllRelatedObjects(context: context),
-            ]
-            .flatMap { $0 }
-            .map {
-              context.object(from: $0)
-          }
-          .sorted { $0.name < $1.name },
-          baseHeading: "###"
-        )
+      endpointBuilder.appendMarkdownText(
+        from: [
+          context.object(from: endpoint.body).members.collectAllRelatedObjects(context: context),
+          context.object(from: endpoint.response).members.collectAllRelatedObjects(context: context),
+          ]
+          .flatMap { $0 }
+          .map {
+            context.object(from: $0)
+        }
+        .sorted { $0.name < $1.name },
+        baseHeading: "####"
       )
       
-      buffer.appendNewline()
-                        
+      endpointBuilder.appendNewline()
+      endpointBuilder.appendNewline()
+      endpointBuilder.appendNewline()
+                
+      builder.append(endpointBuilder.render())
     }
     
-    return buffer.render()
+    return builder.render()
     
   }
 }
 
-final class JSONListRenderer: Renderer {
-
-  func render(context: ParserContext) -> String {
-    Markdown.makeMarkdownText(from: context.parsedObjects)
-  }
-}
+//final class JSONListRenderer: Renderer {
+//
+//  func render(context: ParserContext) -> String {
+//    Markdown.makeMarkdownText(from: context.parsedObjects)
+//  }
+//}

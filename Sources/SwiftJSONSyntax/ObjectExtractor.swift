@@ -2,55 +2,6 @@
 import SwiftSyntax
 import Foundation
 
-
-extension Array where Element == Member {
-  
-  func collectAllRelatedObjects(context: ParserContext) -> Set<ObjectRef> {
-    
-    var buffer = Set<ObjectRef>()
-    
-    func _collectAllRelatedObjects(valueType: ValueType) {
-      
-      switch valueType {
-      case .unknown:
-        break
-      case .string:
-        break
-      case .number:
-        break
-      case .boolean:
-        break
-      case .object(let objectRef):
-        buffer.insert(objectRef)
-        context.object(from: objectRef).members.forEach {
-          _collectAllRelatedObjects(valueType: $0.valueType)
-        }
-      case .array(let valueType):
-        _collectAllRelatedObjects(valueType: valueType)
-      case .oneof(let wrapper):
-        wrapper.cases.forEach {
-          _collectAllRelatedObjects(valueType: $0.valueType)
-        }
-      }            
-    }
-    
-    for element in self {
-      _collectAllRelatedObjects(valueType: element.valueType)
-    }
-      
-    return buffer
-  }
-  
-}
-
-let numberKeywords = [
-  "Int"
-]
-
-let stringkeywords = [
-  "String"
-]
-
 final class ObjectExtractor: SyntaxRewriter {
   
   let context: ParserContext
@@ -160,13 +111,28 @@ final class ObjectExtractor: SyntaxRewriter {
         
         switch typeAnnotation.type {
         case let b as SimpleTypeIdentifierSyntax:
-          return Member(
-            key: name,
-            valueType: makeValueType(from: b, on: context),
-            isRequired: true,
-            defaultValue: defaultValue,
-            comment: comment
-          )
+          
+          if b.name.text == "SelfTypeName" {
+            
+            return Member(
+              key: "type",
+              valueType: .string,
+              isRequired: true,
+              defaultValue: structName.camelCaseToSnakeCase(),
+              comment: comment
+            )
+            
+          } else {
+            
+            return Member(
+              key: name,
+              valueType: makeValueType(from: b, on: context),
+              isRequired: true,
+              defaultValue: defaultValue,
+              comment: comment
+            )
+            
+          }
         case let b as OptionalTypeSyntax:
           return Member(
             key: name,
@@ -203,45 +169,3 @@ final class ObjectExtractor: SyntaxRewriter {
   }
   
 }
-
-enum Generator {
-  
-  static func run(filePath: String) throws {
-    
-    let url = URL(fileURLWithPath: filePath)
-    let sourceFile = try SyntaxParser.parse(url)
-    
-    let context = ParserContext()
-    
-    _ = ObjectSymbolExtractor(context: context).visit(sourceFile)
-    _ = EnumExtractor(context: context).visit(sourceFile)
-    _ = ObjectExtractor(context: context).visit(sourceFile)
-    _ = EndpointParser(context: context).visit(sourceFile)
-    
-    if context.errorStack.isEmpty {
-//      print("✅ Enum Extracting => Success")
-    } else {
-      print("❌ Enum Extracting => Found Error")
-      for error in context.errorStack {
-        print(" -", error)
-      }
-    }
-    
-    if context.errorStack.isEmpty {
-//      print("✅ Object Extracting => Success")
-    } else {
-      print("❌ Object Extracting => Found Error")
-      for error in context.errorStack {
-        print(" -", error)
-      }
-    }
-    
-//    let text = JSONListRenderer().render(context: context)
-    let text = APIDocumentRenderer().render(context: context)
-    
-    print("Result")
-    print("")
-    print(text)
-  }
-}
-//print(result)
